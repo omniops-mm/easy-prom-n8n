@@ -1,0 +1,21 @@
+# Notification routing; contact points are in contactpoints.yml. Provisioning
+# replaces the WHOLE tree including Grafana's default policy, so new routes
+# belong inside this file. Read-only in the UI.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: easypromn8n-default
+    # folder keeps these alerts separate from anything else this Grafana
+    # alerts on; alertname = one notification per rule, not per series. The
+    # folder name is why the dashboards provision into a folder called n8n.
+    group_by:
+      - grafana_folder
+      - alertname
+    # hold a new group so alerts firing together arrive as one notification
+    group_wait: 30s
+    # minimum gap before a notified group reports newly added alerts
+    group_interval: 5m
+    # re-notification interval for a still-firing alert
+    repeat_interval: 4h
+    routes: []

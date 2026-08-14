@@ -1,0 +1,478 @@
+# Grafana-managed alert rules. Read-only in the UI; edit here and restart
+# grafana to change a threshold.
+#
+# Every rule has the same three-step shape (the shape Grafana exports):
+#   A  PromQL range query    B  reduce to one number    C  threshold
+# Reduce mode dropNN skips the empty trailing point at the "now" edge of the
+# window instead of reading it as a missing value.
+#
+# noDataState is per rule: most n8n families are flag-gated and absent series
+# evaluate to no data, not zero, so optional-family rules use OK to stay quiet.
+# Only the reachability rule alerts on no data. Accepted spellings are checked
+# at parse time and a bad one stops the container: Alerting, NoData, OK,
+# KeepLast (noDataState) / Alerting, Error, OK, KeepLast (execErrState).
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: n8n
+    folder: n8n
+    interval: 1m
+    rules:
+      # deliberately not filtered with == 0: a healthy target would then return
+      # an empty result, indistinguishable from a missing target
+      - uid: epn8n-instance-down
+        title: N8nInstanceDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 'up{job="n8n"}'
+              instant: false
+              range: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        # no data = the job has no targets at all = broken scrape config
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+          service: n8n
+        annotations:
+          summary: 'Prometheus cannot scrape the n8n instance {{ $labels.instance }}.'
+          description: >-
+            The last scrape of the n8n metrics endpoint at {{ $labels.instance }} failed, and it
+            has kept failing for two minutes. Workflows may still be running: this rule only says
+            that the metrics endpoint is unreachable from the Prometheus container, so every other
+            n8n panel and alert is now blind. The usual causes, in the order worth checking: n8n is
+            listening on 127.0.0.1 instead of 0.0.0.0, so nothing outside its own container or host
+            can reach it; the address in prometheus/targets/n8n.yml is wrong or points at a name
+            that does not resolve on the compose network; a firewall or security group sits between
+            the Prometheus container and the n8n host. Confirm with
+            "docker compose exec prometheus wget -qO- http://<target>/metrics" and check the
+            target list at Prometheus, Status, Target health.
+
+      # built on the duration histogram (on by default), not the event-bus
+      # counters: those need an extra flag and do not exist until the first
+      # failure, so a rule on them is silent exactly where it is needed.
+      # clamp_min floors the denominator so an idle window is 0, not NaN.
+      - uid: epn8n-high-failure-rate
+        title: N8nHighFailureRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 'sum(rate(n8n_workflow_execution_duration_seconds_count{status="failed"}[10m])) / clamp_min(sum(rate(n8n_workflow_execution_duration_seconds_count[10m])), 0.001)'
+              instant: false
+              range: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        # empty result = nothing finished in the window, not a fault
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          service: n8n
+        annotations:
+          summary: 'More than 10% of n8n workflow executions are failing.'
+          description: >-
+            Over the last ten minutes, the share of finished workflow executions that ended in
+            failure stayed above 0.1, currently {{ $values.B.Value }}. A small number of failing
+            workflows is normal in most installations, so the threshold is set well above the
+            usual background rate; a sustained value above it means either one high-volume
+            workflow is broken or something the workflows depend on, such as an upstream API or
+            the database, is refusing requests. Open the executions dashboard, sort by failures,
+            and look at the newest failed execution to see which node raised the error. Manual
+            runs started from the editor are counted alongside production executions, so a
+            workflow being debugged can raise this figure on a quiet instance.
+
+      # quantiles cannot be averaged after the fact; sum the raw buckets by le
+      - uid: epn8n-execution-latency-high
+        title: N8nExecutionLatencyHigh
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 'histogram_quantile(0.95, sum by (le) (rate(n8n_workflow_execution_duration_seconds_bucket[15m])))'
+              instant: false
+              range: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params:
+                      - 30
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        # no executions in the window = undefined quantile = no data
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          service: n8n
+        annotations:
+          summary: 'The 95th percentile n8n execution takes longer than 30 seconds.'
+          description: >-
+            Nineteen of every twenty workflow executions finished within the current 95th
+            percentile of {{ $values.B.Value }} seconds, and that percentile has been above 30 seconds
+            for fifteen minutes. Slow executions hold their slot in n8n's concurrency budget, so a
+            rising percentile tends to turn into a growing backlog. Long-running workflows are a
+            legitimate design, and in that case this threshold is too low for the installation and
+            should be raised. If the change is recent, compare the percentile against the same time
+            yesterday on the executions dashboard, then check whether one workflow, one external
+            service, or the database is responsible.
+
+      # one shared queue reported per main instance; max collapses duplicates
+      - uid: epn8n-queue-backlog
+        title: N8nQueueBacklog
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 'max(n8n_scaling_mode_queue_jobs_waiting)'
+              instant: false
+              range: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params:
+                      - 100
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        # series exists only in queue mode; most installs must not be paged
+        # about its absence
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          service: n8n
+        annotations:
+          summary: 'More than 100 n8n jobs are waiting for a worker.'
+          description: >-
+            The scaling-mode queue has held more than 100 waiting jobs for ten minutes, currently
+            {{ $values.B.Value }}. Jobs wait when work arrives faster than the workers can finish it, so
+            either the incoming rate has risen or workers have stopped consuming: check that the
+            expected number of worker containers is running and that none of them is stuck on a
+            slow external call. A backlog that keeps growing means added capacity is needed rather
+            than patience. This rule is inert unless queue metrics are enabled, because a series
+            that is never published cannot cross a threshold; it requires n8n in queue mode with
+            N8N_METRICS_INCLUDE_QUEUE_METRICS=true.
+
+      - uid: epn8n-eventloop-lag-high
+        title: N8nEventLoopLagHigh
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 'max by (instance) (n8n_nodejs_eventloop_lag_p99_seconds)'
+              instant: false
+              range: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        # absent when N8N_METRICS_INCLUDE_DEFAULT_METRICS=false: a config choice
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          service: n8n
+        annotations:
+          summary: 'The Node.js event loop on {{ $labels.instance }} is lagging by more than 0.5s.'
+          description: >-
+            The 99th percentile event loop delay on {{ $labels.instance }} has been above 0.5
+            seconds for five minutes, currently {{ $values.B.Value }} seconds. n8n runs all workflow
+            logic on a single Node.js thread, and the event loop is the queue that thread works
+            through, so every task waits behind whatever is blocking it: sustained lag delays every
+            execution, every webhook response and every UI request on that instance, whatever the
+            CPU graph says. The usual causes are a workflow doing heavy synchronous work such as
+            parsing a very large payload in a Code node, or the container being starved of CPU by
+            its own limit or by a noisy neighbour. Check CPU usage and limits for that container
+            first, then look for a workflow handling unusually large items.
+
+      - uid: epn8n-heap-near-limit
+        title: N8nHeapNearLimit
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: 'max by (instance) (n8n_nodejs_heap_size_used_bytes / n8n_nodejs_heap_size_total_bytes)'
+              instant: false
+              range: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.9
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        # same optional family as the event loop rule
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          service: n8n
+        annotations:
+          summary: 'Node.js heap usage on {{ $labels.instance }} is above 90% of the allocated heap.'
+          description: >-
+            Used heap divided by allocated heap on {{ $labels.instance }} has been above 0.9 for
+            ten minutes, currently {{ $values.B.Value }}. A healthy Node.js process sawtooths well below
+            that line as garbage collection reclaims memory, so a ratio that stays high means
+            collection is no longer freeing much and the process is close to growing the heap
+            again or running out of room to grow. What follows is either heavy garbage collection,
+            which shows up as event loop lag, or an out-of-memory crash that ends every execution
+            in flight. Look for workflows moving large payloads through many items, and check
+            whether the container memory limit and NODE_OPTIONS --max-old-space-size leave enough
+            headroom for them.

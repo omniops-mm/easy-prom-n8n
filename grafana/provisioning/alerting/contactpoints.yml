@@ -1,0 +1,51 @@
+# Contact points; the routing is in policies.yml. Read-only in the UI: edit
+# here and restart grafana.
+#
+# No secrets in this file - it is committed. Grafana expands $VARIABLE from
+# its process environment, so pass tokens and webhook URLs through the compose
+# environment and reference them as $NAME ($$ for a literal dollar).
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: easypromn8n-default
+    receivers:
+      - uid: epn8n-default
+        type: email
+        # works without external services: with no SMTP configured (the
+        # default), delivery fails at notification time and is logged, but the
+        # alert still fires and is visible under Alerting. Set GF_SMTP_* or
+        # use an example below to get notifications out of the browser.
+        disableResolveMessage: false
+        settings:
+          addresses: alerts@example.com
+          # one mail per notification group, not one per recipient
+          singleEmail: true
+
+  # Slack, using an incoming webhook. Create the webhook in Slack, pass its URL into the
+  # grafana container as SLACK_WEBHOOK_URL, and keep the value in an untracked .env file.
+  # - orgId: 1
+  #   name: slack
+  #   receivers:
+  #     - uid: epn8n-slack
+  #       type: slack
+  #       disableResolveMessage: false
+  #       settings:
+  #         url: $SLACK_WEBHOOK_URL
+  #         title: '{{ template "slack.default.title" . }}'
+  #         text: '{{ template "slack.default.text" . }}'
+
+  # Generic webhook, for an on-call system, a chat bridge, or an n8n workflow that reacts
+  # to its own alerts. Grafana POSTs a JSON body describing the alert group.
+  # - orgId: 1
+  #   name: webhook
+  #   receivers:
+  #     - uid: epn8n-webhook
+  #       type: webhook
+  #       disableResolveMessage: false
+  #       settings:
+  #         url: $ALERT_WEBHOOK_URL
+  #         httpMethod: POST
+  #         authorization_scheme: Bearer
+  #         authorization_credentials: $ALERT_WEBHOOK_TOKEN
+  #         maxAlerts: '20'
