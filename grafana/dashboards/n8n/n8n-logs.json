@@ -1,0 +1,386 @@
+{
+  "id": null,
+  "uid": "epn8n-logs",
+  "title": "n8n / Logs",
+  "tags": [
+    "n8n"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Log source",
+        "type": "datasource",
+        "query": "loki",
+        "current": {
+          "text": "Loki",
+          "value": "loki"
+        },
+        "hide": 0
+      },
+      {
+        "name": "promds",
+        "label": "Metrics source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0
+      },
+      {
+        "name": "logjob",
+        "label": "Loki job label",
+        "type": "constant",
+        "query": "easy-prom-n8n",
+        "current": {
+          "text": "easy-prom-n8n",
+          "value": "easy-prom-n8n"
+        },
+        "hide": 2
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "textbox",
+        "query": ".+",
+        "options": [],
+        "current": {
+          "text": ".+",
+          "value": ".+"
+        },
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "query": "",
+        "options": [],
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "What this dashboard needs",
+      "description": "Prerequisites for the panels below to contain data.",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Both halves of the log pipeline: lines Vector shipped to Loki, and the counter Vector derived from those same lines (`n8n_log_events_total`, scraped by Prometheus).\n\nNeeds the logs profile running and `N8N_LOG_FORMAT=json` on the n8n instance; text-format lines are still collected but arrive as level `unparsed`. Log lines carry no workflow or execution id, so per-workflow figures live on the Executions dashboard, not here."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error share of collected lines",
+      "description": "Proportion of collected log lines at level=error over the selected range. Reads 0 rather than No data when lines were collected and none were errors.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "queryType": "instant",
+          "expr": "(sum(count_over_time({job=\"$logjob\"} | json | service=~\"$service\" | level=\"error\" |~ \"(?i)$search\" [$__range])) or vector(0)) / (sum(count_over_time({job=\"$logjob\"} | json | service=~\"$service\" |~ \"(?i)$search\" [$__range])) or vector(1))",
+          "legendFormat": "error share"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Log volume by level",
+      "description": "Collected log lines per interval, split by the level parsed out of the JSON line. Lines that were not JSON appear as level unparsed, which usually means N8N_LOG_FORMAT is not set to json.",
+      "gridPos": {
+        "h": 5,
+        "w": 18,
+        "x": 6,
+        "y": 4
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "lineWidth": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "queryType": "range",
+          "expr": "sum by (level) (count_over_time({job=\"$logjob\"} | json | service=~\"$service\" |~ \"(?i)$search\" [$__auto]))",
+          "legendFormat": "{{level}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Log event rate by severity (derived by Vector)",
+      "description": "The same events as the panel above, but counted by Vector and stored in Prometheus as n8n_log_events_total. This is the lane that survives without Loki: n8n's own metrics endpoint reports nothing about log severity, so a rising error rate is visible here and nowhere else in Prometheus. Reads from the Prometheus job named vector, not from job n8n.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${promds}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${promds}"
+          },
+          "expr": "sum by (level) (rate(n8n_log_events_total{job=\"vector\"}[5m]))",
+          "legendFormat": "{{level}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Warnings and errors by n8n source file",
+      "description": "Which part of n8n is producing the warnings and errors, taken from the file field in n8n's log metadata. Useful for telling a noisy subsystem apart from a genuine incident. Empty when nothing has logged above info level.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${promds}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${promds}"
+          },
+          "expr": "topk(10, sum by (file) (rate(n8n_log_events_total{job=\"vector\", level=~\"warn|error\"}[5m])))",
+          "legendFormat": "{{file}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "logs",
+      "title": "Log lines",
+      "description": "Raw lines for the selected services, filtered case-insensitively by the Search box. Identifiers such as an execution id are deliberately not labels, so search for them as free text here.",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "queryType": "range",
+          "expr": "{job=\"$logjob\"} | json | service=~\"$service\" |~ \"(?i)$search\"",
+          "maxLines": 500
+        }
+      ]
+    }
+  ]
+}
