@@ -70,9 +70,76 @@ services:
     networks:
       epn8n:
 
+  # --- demo profile: a throwaway n8n for evaluating the dashboards ---
+
+  n8n-demo:
+    image: docker.n8n.io/n8nio/n8n:2.35.1
+    profiles: ["demo"]
+    env_file:
+      - ./demo/n8n.env
+    volumes:
+      - n8n_demo_data:/home/node/.n8n
+    # scraped over the compose network; /metrics has no auth. The seed container
+    # prints the owner login in its log. Uncomment to open the editor UI:
+    # ports:
+    #   - "127.0.0.1:5678:5678"
+    healthcheck:
+      # readiness includes DB connection and migrations; /healthz only means
+      # the port is open
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      # first start runs DB migrations
+      start_period: 120s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      epn8n:
+        # answers to the name the shipped scrape target uses
+        aliases:
+          - n8n
+
+  n8n-seed:
+    image: docker.n8n.io/n8nio/n8n:2.35.1
+    profiles: ["demo"]
+    # via sh: the bind-mounted script may lose its executable bit on Windows
+    entrypoint: ["/bin/sh", "/demo/seed.sh"]
+    env_file:
+      - ./demo/n8n.env
+    volumes:
+      - n8n_demo_data:/home/node/.n8n
+      - ./demo:/demo:ro
+    depends_on:
+      n8n-demo:
+        condition: service_healthy
+    # one-shot; exiting is the success case
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      epn8n:
+
+  loadgen:
+    image: curlimages/curl:8.21.0
+    profiles: ["demo"]
+    entrypoint: ["/bin/sh", "/demo/loadgen.sh"]
+    volumes:
+      - ./demo:/demo:ro
+    depends_on:
+      n8n-demo:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      epn8n:
+
 volumes:
   prometheus_data:
   grafana_data:
+  n8n_demo_data:
 
 networks:
   epn8n:

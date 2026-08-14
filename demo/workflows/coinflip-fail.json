@@ -1,0 +1,56 @@
+{
+  "name": "EasyPromN8N demo: coinflip failures",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "c4a80e51-3d69-4b72-95fc-8e1b6a2d70c9",
+      "name": "Every 45 seconds",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -220,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 45
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e7d25b93-1f40-4a86-b3c7-9a0d4e8f26b1",
+      "name": "Flip a coin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// About three runs in ten end in a failed execution, which is what gives the failure\n// rate panels and the failure rate alert something to show.\nconst failureRate = 0.3;\n\nif (Math.random() < failureRate) {\n  throw new Error('Coin flip landed on failure. This demo workflow fails on purpose.');\n}\n\nreturn [{ json: { outcome: 'success', failureRate, at: new Date().toISOString() } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Every 45 seconds": {
+      "main": [
+        [
+          {
+            "node": "Flip a coin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

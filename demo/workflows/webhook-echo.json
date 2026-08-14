@@ -1,0 +1,52 @@
+{
+  "name": "EasyPromN8N demo: webhook echo",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "5e1c9b74-2f83-4d06-a5b8-1c7e4a90d2f6",
+      "name": "POST demo-echo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -220,
+        0
+      ],
+      "webhookId": "7a4d2f61-8c05-49b3-9e27-3b6f1d8c50a4",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo-echo",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "9b3f6d20-4a71-4c58-8e94-0d2a7f5c1b63",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "POST demo-echo": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
