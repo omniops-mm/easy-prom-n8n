@@ -1,0 +1,15 @@
+# local configuration
+.env
+
+# live scrape targets carry internal hostnames
+prometheus/targets/*.yml
+!prometheus/targets/*.example
+
+# local compose overrides
+*.local.yml
+*.local.yaml
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
