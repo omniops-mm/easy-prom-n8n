@@ -1,0 +1,28 @@
+# Targets for the "n8n" job. Copy to n8n.yml, then edit. Prometheus re-reads
+# the file on change; invalid YAML is rejected and the previous contents stay
+# in effect.
+# Do not set a "job" label: dashboards and alerts filter on job="n8n".
+# n8n's /metrics has no authentication. Only list hosts on a network you
+# control.
+
+- targets:
+    - 'n8n:5678'
+
+# Remote instance. The address must resolve from inside the Prometheus
+# container; 127.0.0.1 is the container itself.
+# - targets:
+#     - 'n8n.example.com:5678'
+
+# HTTPS. __scheme__ changes how the target is fetched and is not stored as a
+# label.
+# - targets:
+#     - 'n8n.example.com:443'
+#   labels:
+#     __scheme__: https
+
+# Labels are attached to every metric from the entry. "job" and "instance"
+# are reserved.
+# - targets:
+#     - 'n8n-prod.example.com:5678'
+#   labels:
+#     env: production

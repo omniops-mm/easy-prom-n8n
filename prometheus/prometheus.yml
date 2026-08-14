@@ -1,0 +1,25 @@
+# Prometheus does not expand environment variables in this file. Scrape
+# addresses live in targets/*.yml, read via file_sd_configs and applied on
+# change without a restart.
+# Alert rules are provisioned in Grafana; this file declares none.
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus scraping its own /metrics
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - 'localhost:9090'
+
+  - job_name: n8n
+    metrics_path: /metrics
+    # kept below scrape_interval so a slow scrape fails before the next one starts
+    scrape_timeout: 10s
+    file_sd_configs:
+      # filename-scoped glob: only n8n target files can join job="n8n"
+      - files:
+          - /etc/prometheus/targets/n8n*.yml
+        # poll fallback; bind mounts on Docker Desktop do not emit file events
+        refresh_interval: 30s
