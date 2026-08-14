@@ -1,0 +1,21 @@
+# Prometheus datasource. The uid is fixed: every dashboard JSON in this
+# repository references the datasource by uid "prometheus". Do not rename.
+# editable: false blocks UI changes, which this file would revert on the next
+# start anyway.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    # resolved on the compose network
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # matches the scrape interval; keeps $__rate_interval from asking for a
+      # finer resolution than the data has
+      timeInterval: 15s
+      # keeps long queries out of URLs and access logs
+      httpMethod: POST

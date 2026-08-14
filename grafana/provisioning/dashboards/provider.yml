@@ -1,0 +1,18 @@
+# Loads dashboard JSON from the bind-mounted dashboards directory.
+# allowUiUpdates: false makes dashboards read-only in the browser: UI edits
+# would be overwritten by the next provisioning pass, so the save is blocked.
+# The editing loop is Export -> Save to file -> commit.
+apiVersion: 1
+
+providers:
+  - name: EasyPromN8N
+    orgId: 1
+    type: file
+    # removes a dashboard from the database when its JSON file is deleted
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      # subdirectories become Grafana folders
+      foldersFromFilesStructure: true
