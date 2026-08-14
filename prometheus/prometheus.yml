@@ -23,3 +23,14 @@ scrape_configs:
           - /etc/prometheus/targets/n8n*.yml
         # poll fallback; bind mounts on Docker Desktop do not emit file events
         refresh_interval: 30s
+
+  # Vector's log-derived counters (logs profile). Its own job keeps the series
+  # out of job="n8n", where a foreign target would trip the instance-down
+  # alert; with the profile off the job simply has no targets.
+  - job_name: vector
+    metrics_path: /metrics
+    scrape_timeout: 10s
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/vector*.yml
+        refresh_interval: 30s

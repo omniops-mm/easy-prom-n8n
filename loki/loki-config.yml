@@ -1,0 +1,72 @@
+# Single-binary Loki: all components in one process, data on a local volume.
+
+# No authentication. Acceptable only because the compose file publishes no
+# port: Loki is reachable by Grafana and Vector on the compose network and
+# nowhere else. Publishing 3100 requires an authenticating proxy in front.
+auth_enabled: false
+
+server:
+  # all interfaces inside the container; the port is never published to the host
+  http_listen_address: 0.0.0.0
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  path_prefix: /loki
+  # single process: one copy of every stream, in-memory ring
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    # TSDB + schema v13 is the current index format; one entry suffices on a
+    # fresh install. Schema changes later = add a second entry with a future
+    # "from" date.
+    - from: 2024-04-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        # retention only works with a 24h index period
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  # without this the compactor only merges indexes and old chunks stay forever
+  retention_enabled: true
+  # grace period between marking and deleting, so in-flight queries keep their data
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 50
+  # required once retention is enabled
+  delete_request_store: filesystem
+
+limits_config:
+  # seven days; older is deleted by the compactor
+  retention_period: 168h
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # caps so one workflow failing in a loop cannot fill the volume
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  max_query_series: 500
+  # powers the log volume histogram in Explore
+  volume_enabled: true
+
+analytics:
+  reporting_enabled: false

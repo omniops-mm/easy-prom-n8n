@@ -1,0 +1,63 @@
+# Optional logs profile: Loki for storage, Vector for collection. Pipeline in
+# vector/vector.yaml; setup and LogQL examples in docs/logs.md.
+#
+# SECURITY - this profile hands Vector the Docker socket. The socket is the
+# daemon's full control API: anything holding it can read every container's
+# environment (passwords included), labels and logs on this host. The :ro
+# mount protects the socket file, not the API behind it; treat it as root on
+# the host. That trade-off is why this is an opt-in profile. For logs without
+# the exposure, put a socket proxy in front of the daemon.
+#
+# Limits: Vector asks the Docker daemon for logs, so an n8n installed with
+# npm, under systemd, or on another host is invisible here. The n8n instance
+# needs N8N_LOG_FORMAT=json; plain text arrives as level "unparsed".
+
+services:
+  loki:
+    image: grafana/loki:3.7.6
+    profiles: ["logs"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    # no healthcheck: the image is distroless (no shell, no HTTP client to
+    # probe with); Vector and Grafana both retry a Loki that is not up yet
+    security_opt:
+      - no-new-privileges:true
+    # without this Compose puts Loki on an implicit default network where
+    # Grafana cannot resolve the name loki
+    networks:
+      epn8n:
+
+  vector:
+    image: timberio/vector:0.57.0-alpine
+    profiles: ["logs"]
+    restart: unless-stopped
+    depends_on:
+      - loki
+    volumes:
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - vector-data:/var/lib/vector
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # the derived counters are served on 9598 and scraped over the compose
+    # network; copy targets/vector.yml.example to collect them
+    healthcheck:
+      # alpine image: wget, no curl. Asking the exporter for its own output
+      # proves the sink serves, not just that the process runs. 127.0.0.1, not
+      # localhost: localhost is IPv6-only in this image while the exporter
+      # binds IPv4, so a localhost check is refused forever.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9598/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # the one container holding the Docker socket, so this flag matters most here
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      epn8n:
+
+volumes:
+  loki-data:
+  vector-data:

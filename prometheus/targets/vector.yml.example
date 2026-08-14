@@ -1,0 +1,8 @@
+# Scrape target for Vector (logs profile). Copy to vector.yml when enabling
+# the profile:
+#   cp prometheus/targets/vector.yml.example prometheus/targets/vector.yml
+# Picked up without a restart. Vector serves the counters it derives from the
+# log stream on 9598, reached over the compose network.
+
+- targets:
+    - 'vector:9598'

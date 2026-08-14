@@ -1,0 +1,15 @@
+# Loki datasource for the container logs. Provisioned unconditionally: with
+# the logs profile off, Loki is simply unreachable and the logs dashboard
+# shows a connection error. Preferable to a conditional provisioning
+# directory, which would need a second bind mount and a restart per switch.
+# uid pinned for the same reason as the Prometheus one.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false

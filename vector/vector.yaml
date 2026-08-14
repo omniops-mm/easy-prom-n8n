@@ -1,0 +1,102 @@
+# Vector: reads container logs, ships them to Loki, and derives a Prometheus
+# counter from them in the same pass. n8n's /metrics exposes nothing about log
+# severity; that signal exists only in the log stream.
+
+sources:
+  # needs the Docker socket; see the security note in compose.logs.yaml
+  containers:
+    type: docker_logs
+    # Values are literal: Vector does not expand ${VAR} here, matches nothing,
+    # and reports no error. To collect an existing n8n, add its compose
+    # project name as a second entry.
+    include_labels:
+      - "com.docker.compose.project=easy-prom-n8n"
+      # - "com.docker.compose.project=my-n8n"
+
+transforms:
+  # Parses n8n's JSON log format. Non-JSON lines (other containers, or n8n
+  # without N8N_LOG_FORMAT=json) are kept as level "unparsed" so a wrong log
+  # format stays visible.
+  parse:
+    type: remap
+    inputs:
+      - containers
+    source: |
+      parsed, parse_error = parse_json(.message)
+
+      if parse_error == null && is_object(parsed) {
+        obj = object!(parsed)
+        meta = object(obj.metadata) ?? {}
+
+        .level = string(obj.level) ?? "unknown"
+        .log_file = string(meta.file) ?? "unknown"
+        .log_function = string(meta.function) ?? "unknown"
+        .message = string(obj.message) ?? ""
+      } else {
+        .level = "unparsed"
+        .log_file = "unknown"
+        .log_function = "unknown"
+      }
+
+      .service = string(.label."com.docker.compose.service") ?? "unknown"
+
+      # level and service become metric tags below; clamp them to bounded
+      # sets so a log line cannot mint new Prometheus series
+      if !includes(["info", "warn", "error", "debug", "verbose", "unparsed"], .level) {
+        .level = "other"
+      }
+      if !match(.service, r'^[A-Za-z0-9_.-]{1,64}$') {
+        .service = "unknown"
+      }
+
+      # keep only these fields; the Docker source attaches full container
+      # metadata, which Loki would otherwise store once per line
+      . = {
+        "timestamp": .timestamp,
+        "level": .level,
+        "service": .service,
+        "log_file": .log_file,
+        "log_function": .log_function,
+        "message": .message
+      }
+
+  # One increment per event. The message is not a tag: unbounded values, one
+  # series per distinct message. It stays in Loki, where queries scan it.
+  log_metrics:
+    type: log_to_metric
+    inputs:
+      - parse
+    metrics:
+      - type: counter
+        field: level
+        name: log_events_total
+        namespace: n8n
+        tags:
+          level: "{{level}}"
+          service: "{{service}}"
+          file: "{{log_file}}"
+
+sinks:
+  # Static stream label on purpose: Loki wants labels few and bounded.
+  # Severity stays inside the line: {job="easy-prom-n8n"} | json | level="error"
+  loki:
+    type: loki
+    inputs:
+      - parse
+    endpoint: http://loki:3100
+    encoding:
+      codec: json
+    labels:
+      job: easy-prom-n8n
+    # Docker timestamps are ordered per container, not across containers
+    out_of_order_action: accept
+
+  # Serves the counter at :9598/metrics for Prometheus to scrape.
+  # flush_period_secs must stay above the scrape interval: Vector expires
+  # metrics unseen within the window, and expiry mid-scrape-gap drops series.
+  prometheus:
+    type: prometheus_exporter
+    inputs:
+      - log_metrics
+    address: 0.0.0.0:9598
+    flush_period_secs: 60
