@@ -1,28 +1,41 @@
-# Targets for the "n8n" job. Copy to n8n.yml, then edit. Prometheus re-reads
-# the file on change; invalid YAML is rejected and the previous contents stay
-# in effect.
-# Do not set a "job" label: dashboards and alerts filter on job="n8n".
-# n8n's /metrics has no authentication. Only list hosts on a network you
-# control.
+# Copy to n8n.yml and edit. Prometheus re-reads the file on change; invalid
+# YAML is rejected and the previous contents stay in effect.
+#
+# Do not set a "job" label: the dashboards and alerts filter on job="n8n".
+# n8n's /metrics has no authentication, so only list hosts you control.
 
+# The demo profile answers to this name. Replace it with one of the below.
 - targets:
     - 'n8n:5678'
 
-# Remote instance. The address must resolve from inside the Prometheus
-# container; 127.0.0.1 is the container itself.
+# n8n on this machine, outside Docker (npm, systemd, or a published port):
+# - targets:
+#     - 'host.docker.internal:5678'
+
+# n8n on another machine. The address must resolve from inside the Prometheus
+# container, so 127.0.0.1 will not work.
 # - targets:
 #     - 'n8n.example.com:5678'
 
-# HTTPS. __scheme__ changes how the target is fetched and is not stored as a
-# label.
+# HTTPS: __scheme__ changes how the target is fetched and is not kept as a label.
 # - targets:
 #     - 'n8n.example.com:443'
 #   labels:
 #     __scheme__: https
 
-# Labels are attached to every metric from the entry. "job" and "instance"
-# are reserved.
+# Queue mode (EXECUTIONS_MODE=queue). The metrics split across processes: the
+# main carries queue depth, workflow counters and the duration histogram, the
+# worker carries node-level counters and its own process health. List both, or
+# the queue dashboard shows half the picture while looking complete. Keep the
+# role values as "main" and "worker"; the dashboard splits on them.
+# Never scrape 5679, that is the internal task-runner broker.
+#
 # - targets:
-#     - 'n8n-prod.example.com:5678'
+#     - 'n8n-main:5678'
 #   labels:
-#     env: production
+#     role: main
+# - targets:
+#     - 'n8n-worker-1:5678'
+#     - 'n8n-worker-2:5678'
+#   labels:
+#     role: worker

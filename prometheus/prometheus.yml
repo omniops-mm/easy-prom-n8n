@@ -1,33 +1,24 @@
-# Prometheus does not expand environment variables in this file. Scrape
-# addresses live in targets/*.yml, read via file_sd_configs and applied on
-# change without a restart.
-# Alert rules are provisioned in Grafana; this file declares none.
+# Scrape addresses live in targets/*.yml, read via file_sd_configs and picked
+# up on change without a restart. Environment variables are not expanded here.
+# Alert rules are provisioned in Grafana, not declared in this file.
 
 global:
   scrape_interval: 15s
 
 scrape_configs:
-  # Prometheus scraping its own /metrics
-  - job_name: prometheus
-    static_configs:
-      - targets:
-          - 'localhost:9090'
-
   - job_name: n8n
     metrics_path: /metrics
-    # kept below scrape_interval so a slow scrape fails before the next one starts
+    # below scrape_interval, so a slow scrape fails before the next one starts
     scrape_timeout: 10s
     file_sd_configs:
-      # filename-scoped globs: only n8n target files can join job="n8n"
       - files:
           - /etc/prometheus/targets/n8n*.yml
-          - /etc/prometheus/targets/queue*.yml
-        # poll fallback; bind mounts on Docker Desktop do not emit file events
+        # bind mounts on Docker Desktop do not emit file events, so poll
         refresh_interval: 30s
 
-  # Vector's log-derived counters (logs profile). Its own job keeps the series
-  # out of job="n8n", where a foreign target would trip the instance-down
-  # alert; with the profile off the job simply has no targets.
+  # Vector's log-derived counters (logs profile). Its own job keeps them out of
+  # job="n8n", where a foreign target would trip the instance-down alert. With
+  # the profile off, the job simply has no targets.
   - job_name: vector
     metrics_path: /metrics
     scrape_timeout: 10s

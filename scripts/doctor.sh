@@ -135,11 +135,22 @@ curl_reason() {
 
 DATA_KEYS=''
 IDLE_KEYS=''
+# families whose absence the exposition cannot explain: either the flag is off
+# or the thing has simply not happened. Reported as [ ?? ], never as missing.
+OPEN_KEYS=''
 MISSING_ENV=''
 FAMILIES_TOTAL=0
 FAMILIES_ENABLED=0
 EVENT_BUS_OPEN=0
-QUEUE_ABSENT=0
+QUEUE_OPEN=0
+
+# is_open KEY - true when the family's absence has no single explanation.
+is_open() {
+	case " $OPEN_KEYS " in
+	*" $1 "*) return 0 ;;
+	esac
+	return 1
+}
 
 # has KEY - true when the family carries samples.
 has() {
@@ -162,7 +173,7 @@ enabled() {
 
 # declared NAME_RE - true when the exposition carries a "# TYPE" line for the
 # family: the flag test, independent of traffic. The [a-z_]* fragment covers
-# prefix-named families (n8n_db_pool_connections_active/_idle/_max etc.), which
+# prefix-named families (n8n_scaling_mode_queue_jobs_waiting/_active etc.), which
 # a whitespace anchor would wrongly report as missing.
 declared() {
 	grep -Eq "^# TYPE ${1}[a-z_]*[[:space:]]" "$METRICS_FILE"
@@ -177,7 +188,8 @@ populated() {
 
 # check_family KEY LABEL NAME_RE ENV_VAR DASHBOARD KIND
 # KIND is "lazy" for the event-bus counters, which n8n does not register until
-# their event first fires, and "declared" for every family that appears as soon
+# their event first fires, "queuemode" for the families that exist only under
+# EXECUTIONS_MODE=queue, and "declared" for every family that appears as soon
 # as its flag is read.
 check_family() {
 	FAMILIES_TOTAL=$((FAMILIES_TOTAL + 1))
@@ -194,7 +206,16 @@ check_family() {
 		line_hint "expected a family named ${PREFIX}version_info; check N8N_METRICS_PREFIX"
 	elif [ "$6" = "lazy" ]; then
 		line_open "$2" "not registered yet"
+		OPEN_KEYS="$OPEN_KEYS $1"
 		EVENT_BUS_OPEN=1
+	elif [ "$6" = "queuemode" ]; then
+		# Absent on a single-process instance no matter how the flag is set, and
+		# nothing in the exposition says which mode n8n runs in. Reporting this
+		# as a missing flag would tell most users to add one that changes
+		# nothing, so it stays out of the paste-ready block.
+		line_open "$2" "queue mode only"
+		OPEN_KEYS="$OPEN_KEYS $1"
+		QUEUE_OPEN=1
 	else
 		line_miss "$2" "$4=true"
 		MISSING_ENV="${MISSING_ENV}${4}=true${NL}"
@@ -215,6 +236,7 @@ check_label() {
 		MISSING_ENV="${MISSING_ENV}${5}=true${NL}"
 	else
 		line_open "$2" "no samples to read it from yet"
+		OPEN_KEYS="$OPEN_KEYS $1"
 		EVENT_BUS_OPEN=1
 	fi
 }
@@ -365,7 +387,7 @@ check_family wfinfo "workflow id-to-name map" \
 	"N8N_METRICS_INCLUDE_WORKFLOW_INFO" "Executions (epn8n-executions)" declared
 check_family queue "queue depth gauges" \
 	"${PREFIX}scaling_mode_queue_jobs_" \
-	"N8N_METRICS_INCLUDE_QUEUE_METRICS" "Queue (epn8n-queue)" declared
+	"N8N_METRICS_INCLUDE_QUEUE_METRICS" "Queue (epn8n-queue)" queuemode
 check_family webhook "webhook latency" \
 	"${PREFIX}webhook_request_duration_seconds" \
 	"N8N_METRICS_INCLUDE_WEBHOOK_METRICS" "HTTP (epn8n-http)" declared
@@ -390,16 +412,12 @@ check_family execdata "execution data io" \
 
 # The label flags are read from the sample lines of the families they attach to.
 # workflow_id rides on the duration histogram as well as on the event counters,
-# so either source answers the question; workflow_name and node_type exist only
-# on the event counters.
+# so either source answers the question; node_type exists only on the event
+# counters.
 check_label wfid "workflow id label" \
 	"^${PREFIX}(workflow_execution_duration_seconds_(bucket|sum|count)|workflow_(started|success|failed)_total)[{]" \
 	"^${PREFIX}(workflow_execution_duration_seconds_(bucket|sum|count)|workflow_(started|success|failed)_total)[{][^}]*workflow_id=" \
 	"N8N_METRICS_INCLUDE_WORKFLOW_ID_LABEL"
-check_label wfname "workflow name label" \
-	"^${PREFIX}workflow_(started|success|failed)_total[{]" \
-	"^${PREFIX}workflow_(started|success|failed)_total[{][^}]*workflow_name=" \
-	"N8N_METRICS_INCLUDE_WORKFLOW_NAME_LABEL"
 check_label nodetype "node type label" \
 	"^${PREFIX}node_(started|finished)_total[{]" \
 	"^${PREFIX}node_(started|finished)_total[{][^}]*node_type=" \
@@ -417,12 +435,13 @@ if [ "$EVENT_BUS_OPEN" -eq 1 ]; then
 	line_hint "still absent, the flag is the remaining explanation."
 fi
 
-if ! enabled queue; then
+if [ "$QUEUE_OPEN" -eq 1 ]; then
 	printf '\n'
 	line_info "The queue depth gauges exist only when n8n runs in queue mode"
 	line_hint "(EXECUTIONS_MODE=queue) and are collected on main instances, never on"
 	line_hint "workers. On a single-process instance they are absent no matter how"
-	line_hint "N8N_METRICS_INCLUDE_QUEUE_METRICS is set."
+	line_hint "N8N_METRICS_INCLUDE_QUEUE_METRICS is set, so this is only worth acting"
+	line_hint "on if you do run queue mode; then add the flag to the main instance."
 fi
 
 if grep -Eq "^${PREFIX}http_request_duration_seconds_(bucket|sum|count)[{][^}]*path=" "$METRICS_FILE"; then
@@ -503,17 +522,22 @@ dashboard_line() {
 	shift
 	dash_missing=0
 	dash_idle=0
+	dash_open=0
 	for dash_key in "$@"; do
 		if has "$dash_key"; then
 			continue
 		elif enabled "$dash_key"; then
 			dash_idle=$((dash_idle + 1))
+		elif is_open "$dash_key"; then
+			dash_open=$((dash_open + 1))
 		else
 			dash_missing=$((dash_missing + 1))
 		fi
 	done
 	if [ "$dash_missing" -gt 0 ]; then
 		line_miss "$dash_name" "$dash_missing panel group(s) have no metric to read"
+	elif [ "$dash_open" -gt 0 ]; then
+		line_open "$dash_name" "$dash_open panel group(s) cannot be judged from here"
 	elif [ "$dash_idle" -gt 0 ]; then
 		line_idle "$dash_name" "$dash_idle panel group(s) fill on the first execution"
 	else

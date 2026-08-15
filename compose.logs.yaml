@@ -1,16 +1,15 @@
-# Optional logs profile: Loki for storage, Vector for collection. Pipeline in
-# vector/vector.yaml; setup and LogQL examples in docs/logs.md.
+# Optional logs profile: Loki for storage, Vector for collection.
 #
-# SECURITY - this profile hands Vector the Docker socket. The socket is the
-# daemon's full control API: anything holding it can read every container's
-# environment (passwords included), labels and logs on this host. The :ro
-# mount protects the socket file, not the API behind it; treat it as root on
-# the host. That trade-off is why this is an opt-in profile. For logs without
-# the exposure, put a socket proxy in front of the daemon.
+#   COMPOSE_PROFILES=logs docker compose -f compose.yaml -f compose.logs.yaml up -d
 #
-# Limits: Vector asks the Docker daemon for logs, so an n8n installed with
-# npm, under systemd, or on another host is invisible here. The n8n instance
-# needs N8N_LOG_FORMAT=json; plain text arrives as level "unparsed".
+# SECURITY: this hands Vector the Docker socket, which is the daemon's full
+# control API. Anything holding it can read every container's environment on
+# this host, passwords included. The :ro mount protects the socket file, not
+# the API behind it. That is why the profile is opt-in. A socket proxy in
+# front of the daemon removes the exposure.
+#
+# Vector asks the Docker daemon for logs, so an n8n installed with npm, under
+# systemd, or on another host is invisible here.
 
 services:
   loki:
@@ -21,12 +20,11 @@ services:
     volumes:
       - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
       - loki-data:/loki
-    # no healthcheck: the image is distroless (no shell, no HTTP client to
-    # probe with); Vector and Grafana both retry a Loki that is not up yet
+    # no healthcheck: the image is distroless, so there is no shell or HTTP
+    # client to probe with. Vector and Grafana both retry a Loki that is slow
+    # to come up.
     security_opt:
       - no-new-privileges:true
-    # without this Compose puts Loki on an implicit default network where
-    # Grafana cannot resolve the name loki
     networks:
       epn8n:
 
@@ -40,19 +38,14 @@ services:
       - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
       - vector-data:/var/lib/vector
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    # the derived counters are served on 9598 and scraped over the compose
-    # network; copy targets/vector.yml.example to collect them
     healthcheck:
-      # alpine image: wget, no curl. Asking the exporter for its own output
-      # proves the sink serves, not just that the process runs. 127.0.0.1, not
-      # localhost: localhost is IPv6-only in this image while the exporter
-      # binds IPv4, so a localhost check is refused forever.
+      # 127.0.0.1, not localhost: localhost is IPv6-only in this image while
+      # the exporter binds IPv4, so a localhost check is refused forever.
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9598/metrics"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
-    # the one container holding the Docker socket, so this flag matters most here
     security_opt:
       - no-new-privileges:true
     networks:

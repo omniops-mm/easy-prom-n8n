@@ -84,7 +84,7 @@
       "description": "Why this dashboard is empty on most first runs, and which flags it depends on.",
       "options": {
         "mode": "markdown",
-        "content": "Queue depth gauges are collected on the **main** instance only; workers never expose them. Scrape both roles: main for queue depth, every worker for process health. Zeros here usually mean only a worker is scraped, or the queue flag sits on a worker.\n\nMain needs `N8N_METRICS_INCLUDE_QUEUE_METRICS` and `N8N_METRICS_INCLUDE_MESSAGE_EVENT_BUS_METRICS`; every worker needs `N8N_METRICS` and the event-bus flag. See docs/queue-mode.md; `scripts/doctor.sh` reports what each target has."
+        "content": "Queue depth gauges are collected on the **main** instance only; workers never expose them. Scrape both roles: main for queue depth, every worker for process health. Zeros here usually mean only a worker is scraped, or the queue flag sits on a worker.\n\nMain needs `N8N_METRICS_INCLUDE_QUEUE_METRICS` and `N8N_METRICS_INCLUDE_MESSAGE_EVENT_BUS_METRICS`; every worker needs `N8N_METRICS` and the event-bus flag. See the README; `scripts/doctor.sh` reports what each target has."
       }
     },
     {
@@ -1043,7 +1043,19 @@
               "job 2": true,
               "job 3": true,
               "job 4": true,
-              "job 5": true
+              "job 5": true,
+              "__name__": true,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "__name__ 3": true,
+              "__name__ 4": true,
+              "__name__ 5": true,
+              "__name__ 6": true,
+              "role 2": true,
+              "role 3": true,
+              "role 4": true,
+              "role 5": true,
+              "role 6": true
             },
             "renameByName": {
               "instance": "Instance",
@@ -1051,7 +1063,9 @@
               "Value #B": "Leader",
               "Value #C": "CPU cores",
               "Value #D": "Memory",
-              "Value #E": "Event loop lag p99"
+              "Value #E": "Event loop lag p99",
+              "role 1": "Role",
+              "role": "Role"
             },
             "indexByName": {}
           }

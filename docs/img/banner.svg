@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="300" viewBox="0 0 1000 300" role="img" aria-labelledby="ti de">
+<title id="ti">easy-prom-n8n</title>
+<desc id="de">The easy-prom-n8n wordmark above its one-line description: a full observability stack for a self-hosted n8n, built on Prometheus, Grafana, Loki and Docker Compose.</desc>
+<style>
+text{font-family:system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;dominant-baseline:central}
+.kick{font-size:13px;font-weight:700;letter-spacing:2.4px;fill:#EA4B71}
+.word{font-size:76px;font-weight:800;letter-spacing:-2.6px;fill:#FFFFFF}
+.accent{fill:#EA4B71}
+.desc{font-size:17px;fill:#8A8F98}
+.chip{font-size:13px;font-weight:500;fill:#B6BAC2}
+</style>
+
+<defs>
+<clipPath id="card"><rect width="1000" height="300" rx="16"/></clipPath>
+</defs>
+<g clip-path="url(#card)">
+  <rect width="1000" height="300" fill="#040506"/>
+  <rect x="0" y="0" width="5" height="300" fill="#EA4B71"/>
+</g>
+
+<text class="kick" x="60" y="72">OBSERVABILITY FOR SELF-HOSTED n8n</text>
+<text class="word" x="57" y="132">easy-prom-<tspan class="accent">n8n</tspan></text>
+<text class="desc" x="60" y="188">Prometheus, Grafana and Loki dashboards, wired up and ready to run.</text>
+
+<!-- dashboard motif -->
+<g>
+  <rect x="672" y="46" width="128" height="60" rx="8" fill="#101114" stroke="#3F444E"/>
+  <text x="686" y="66" font-size="9.5" fill="#8A8F98" letter-spacing="1.1">SUCCESS RATE</text>
+  <text x="686" y="88" font-size="22" font-weight="700" fill="#FFFFFF">98.4%</text>
+
+  <rect x="812" y="46" width="128" height="60" rx="8" fill="#101114" stroke="#3F444E"/>
+  <text x="826" y="66" font-size="9.5" fill="#8A8F98" letter-spacing="1.1">P95 DURATION</text>
+  <text x="826" y="88" font-size="22" font-weight="700" fill="#EA4B71">1.8s</text>
+
+  <rect x="672" y="118" width="268" height="94" rx="8" fill="#101114" stroke="#3F444E"/>
+  <line x1="688" y1="199" x2="924" y2="199" stroke="#3F444E" stroke-width="1"/>
+  <polyline points="688,188 714,174 740,180 766,157 792,165 818,142 844,152 870,133 896,140 924,127"
+            fill="none" stroke="#EA4B71" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="688,192 714,189 740,191 766,185 792,189 818,183 844,186 870,180 896,184 924,179"
+            fill="none" stroke="#757C88" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<!-- stack chips -->
+<g>
+  <rect x="60" y="234" width="104" height="28" rx="14" fill="#101114" stroke="#4E545F"/>
+  <text class="chip" x="112" y="248" text-anchor="middle">Prometheus</text>
+  <rect x="172" y="234" width="84" height="28" rx="14" fill="#101114" stroke="#4E545F"/>
+  <text class="chip" x="214" y="248" text-anchor="middle">Grafana</text>
+  <rect x="264" y="234" width="72" height="28" rx="14" fill="#101114" stroke="#4E545F"/>
+  <text class="chip" x="300" y="248" text-anchor="middle">Vector</text>
+  <rect x="344" y="234" width="60" height="28" rx="14" fill="#101114" stroke="#4E545F"/>
+  <text class="chip" x="374" y="248" text-anchor="middle">Loki</text>
+  <rect x="412" y="234" width="134" height="28" rx="14" fill="#101114" stroke="#4E545F"/>
+  <text class="chip" x="479" y="248" text-anchor="middle">Docker Compose</text>
+</g>
+</svg>

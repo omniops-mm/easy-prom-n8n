@@ -283,7 +283,7 @@
             "type": "prometheus",
             "uid": "${promds}"
           },
-          "expr": "sum by (level) (rate(n8n_log_events_total{job=\"vector\"}[5m]))",
+          "expr": "sum by (level) (rate(n8n_log_events_total{job=\"vector\", service=~\"$service\"}[5m]))",
           "legendFormat": "{{level}}"
         }
       ]
@@ -335,7 +335,7 @@
             "type": "prometheus",
             "uid": "${promds}"
           },
-          "expr": "topk(10, sum by (file) (rate(n8n_log_events_total{job=\"vector\", level=~\"warn|error\"}[5m])))",
+          "expr": "topk(10, sum by (file) (rate(n8n_log_events_total{job=\"vector\", service=~\"$service\", level=~\"warn|error\"}[5m])))",
           "legendFormat": "{{file}}"
         }
       ]

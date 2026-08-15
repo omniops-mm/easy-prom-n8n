@@ -1,6 +1,8 @@
-# Prometheus + Grafana for an existing n8n. See INSTALL.md.
-# The name "n8n" is not resolved here; each connection mode (demo, host,
-# external network) adds its own resolution mechanism.
+# Prometheus + Grafana for an existing n8n. See README.md.
+
+# Fixed project name, so it does not follow the directory you cloned into.
+# vector/vector.yaml filters container logs on this exact value.
+name: easy-prom-n8n
 
 services:
   prometheus:
@@ -9,13 +11,16 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROM_RETENTION:-15d}
-      # enables POST /-/reload
       - --web.enable-lifecycle
     volumes:
       - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
-    # not published: the API and UI have no authentication. Uncomment for
-    # access from this machine:
+    # lets targets/n8n.yml use host.docker.internal for an n8n running on this
+    # machine outside Docker. Required on Linux; harmless on Docker Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # not published: the API has no authentication. Uncomment to reach it from
+    # this machine (useful for debugging a DOWN target).
     # ports:
     #   - "127.0.0.1:9090:9090"
     healthcheck:
@@ -36,9 +41,9 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
-      # no default; compose fails to start if unset
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}"
+      GF_SECURITY_ADMIN_USER: admin
+      # no default; compose refuses to start if unset
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?run 'cp .env.example .env' first, then set GRAFANA_ADMIN_PASSWORD in it}"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
@@ -46,9 +51,6 @@ services:
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
-      GF_SECURITY_COOKIE_SAMESITE: "strict"
-      # disables snapshot uploads to snapshots.raintank.io
-      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -70,7 +72,7 @@ services:
     networks:
       epn8n:
 
-  # --- demo profile: a throwaway n8n for evaluating the dashboards ---
+  # --- demo profile: a throwaway n8n so the dashboards have data ---
 
   n8n-demo:
     image: docker.n8n.io/n8nio/n8n:2.35.1
@@ -79,13 +81,13 @@ services:
       - ./demo/n8n.env
     volumes:
       - n8n_demo_data:/home/node/.n8n
-    # scraped over the compose network; /metrics has no auth. The seed container
-    # prints the owner login in its log. Uncomment to open the editor UI:
+    # no port: scraped over the compose network. Uncomment for the editor UI;
+    # the seed container prints the login in its log.
     # ports:
     #   - "127.0.0.1:5678:5678"
     healthcheck:
-      # readiness includes DB connection and migrations; /healthz only means
-      # the port is open
+      # readiness covers DB connection and migrations; /healthz only means the
+      # port is open
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz/readiness"]
       interval: 10s
       timeout: 5s
