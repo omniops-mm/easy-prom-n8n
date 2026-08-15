@@ -1,0 +1,45 @@
+# Scrape targets for n8n in queue mode (EXECUTIONS_MODE=queue). Copy to
+# queue.yml to activate; picked up without a restart. Remove the 'n8n:5678'
+# entry from n8n.yml if it points at the same main instance, or that instance
+# is scraped twice and every rate doubles.
+#
+# The metrics split across the roles (n8n 2.35): the main carries the queue
+# depth gauges, the workflow counters and the duration histogram, including
+# for executions a worker ran; the worker carries node-level counters and its
+# own process health. List every role - scraping only a worker shows neither
+# executions nor queue depth.
+#
+# The "role" label is what the queue dashboard uses to tell processes apart;
+# keep the values main, worker, webhook.
+#
+# A worker serves /metrics with N8N_METRICS=true alone. Never scrape 5679:
+# that is the internal task-runner broker. None of these endpoints
+# authenticate; keep them on a private network.
+
+- targets:
+    - 'n8n-main:5678'
+  labels:
+    role: main
+
+- targets:
+    - 'n8n-worker:5678'
+  labels:
+    role: worker
+
+# Scaled workers need individual addresses: a compose service name scaled to
+# several replicas resolves to all of them and Prometheus samples a different
+# worker per scrape under one instance label. Container names are stable;
+# `docker compose ps` prints them.
+#
+# - targets:
+#     - 'easy-prom-n8n-n8n-worker-1:5678'
+#     - 'easy-prom-n8n-n8n-worker-2:5678'
+#   labels:
+#     role: worker
+
+# Webhook processors, if you run them:
+#
+# - targets:
+#     - 'n8n-webhook:5678'
+#   labels:
+#     role: webhook

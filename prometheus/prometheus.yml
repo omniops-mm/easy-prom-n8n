@@ -18,9 +18,10 @@ scrape_configs:
     # kept below scrape_interval so a slow scrape fails before the next one starts
     scrape_timeout: 10s
     file_sd_configs:
-      # filename-scoped glob: only n8n target files can join job="n8n"
+      # filename-scoped globs: only n8n target files can join job="n8n"
       - files:
           - /etc/prometheus/targets/n8n*.yml
+          - /etc/prometheus/targets/queue*.yml
         # poll fallback; bind mounts on Docker Desktop do not emit file events
         refresh_interval: 30s
 
