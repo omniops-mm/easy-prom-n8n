@@ -19,8 +19,8 @@ text{font-family:system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;dominant
 </g>
 
 <text class="kick" x="60" y="72">OBSERVABILITY FOR SELF-HOSTED n8n</text>
-<text class="word" x="57" y="132">easy-prom-<tspan class="accent">n8n</tspan></text>
-<text class="desc" x="60" y="188">Prometheus, Grafana and Loki dashboards, wired up and ready to run.</text>
+<text class="word" x="57" y="128">easy-prom-<tspan class="accent">n8n</tspan></text>
+<text class="desc" x="60" y="200">Prometheus, Grafana and Loki dashboards, wired up and ready to run.</text>
 
 <!-- dashboard motif -->
 <g>
