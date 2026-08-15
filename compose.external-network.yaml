@@ -1,0 +1,31 @@
+# Override for an n8n running in its own compose project on this host.
+#
+#   docker compose -f compose.yaml -f compose.external-network.yaml up -d
+#
+# Joins Prometheus to the network that project created, so Prometheus resolves
+# the n8n container by service name. Only Prometheus joins; nothing else in
+# this stack can reach that network.
+#
+# Find two names first:
+# 1. The network: usually <their-directory>_default; docker network ls shows
+#    it. Put it in N8N_NETWORK in .env. A wrong name fails at start with
+#    "network ... declared as external, but could not be found".
+# 2. Their n8n service name (the key under services: in their compose file).
+#    Put it in prometheus/targets/n8n.yml, replacing the default entry, e.g.
+#    - targets: ["n8n-main:5678"]. Picked up without a restart.
+#
+# The n8n side needs nothing beyond N8N_METRICS=true.
+#
+# One of three mutually exclusive connection modes (demo profile, host
+# override, this file). Use exactly one: each resolves the name n8n by a
+# different mechanism, and /etc/hosts beats Docker's DNS.
+
+services:
+  prometheus:
+    networks:
+      n8n_external:
+
+networks:
+  n8n_external:
+    name: ${N8N_NETWORK:-n8n_default}
+    external: true

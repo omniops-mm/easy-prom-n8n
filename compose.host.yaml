@@ -1,0 +1,19 @@
+# Override for an n8n running on this host rather than in a container: a
+# package or npm install, a systemd unit, or a Docker Desktop n8n publishing
+# 5678 on the host.
+#
+#   docker compose -f compose.yaml -f compose.host.yaml up -d
+#
+# Adds one /etc/hosts entry to the Prometheus container so the shipped target
+# n8n:5678 resolves to the Docker host; the target file needs no edit. N8N_HOST
+# must be an IP or the literal host-gateway - a hostname or URL is rejected.
+# A different port means editing prometheus/targets/n8n.yml instead.
+#
+# Do not combine with the demo profile: /etc/hosts beats Docker's DNS, so this
+# entry would win over the demo alias and Prometheus would scrape the host n8n
+# while presenting it as the demo.
+
+services:
+  prometheus:
+    extra_hosts:
+      - "n8n:${N8N_HOST:-host-gateway}"
