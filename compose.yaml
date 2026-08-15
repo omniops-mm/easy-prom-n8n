@@ -106,10 +106,7 @@ services:
     profiles: ["demo"]
     # via sh: the bind-mounted script may lose its executable bit on Windows
     entrypoint: ["/bin/sh", "/demo/seed.sh"]
-    env_file:
-      - ./demo/n8n.env
     volumes:
-      - n8n_demo_data:/home/node/.n8n
       - ./demo:/demo:ro
     depends_on:
       n8n-demo:

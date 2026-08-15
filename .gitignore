@@ -7,7 +7,6 @@ prometheus/targets/*.yml
 
 # local compose overrides
 *.local.yml
-*.local.yaml
 
 # OS noise
 .DS_Store
